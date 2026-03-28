@@ -99,6 +99,27 @@ with open("examples/long.mp3", "rb") as f:
 print(result.text)
 ```
 
+## Demo UI
+
+Streamlit frontend for live demos — mic recording or file upload, displays RTF front-and-center.
+
+```bash
+# Install demo extras (on Mac, alongside mlx)
+uv pip install -e ".[mlx,demo]"
+
+# Run — point at A40 backend
+WHISPER_BACKEND_URL=http://<a40-host>:8000 streamlit run demo/app.py
+
+# Or leave URL blank and set it in the sidebar at runtime
+streamlit run demo/app.py
+```
+
+Sidebar shows live backend health (model, backend type, GPU index). Two tabs:
+- **Record** — mic capture via `st.audio_input` → transcribe
+- **Upload** — drag-and-drop audio file → transcribe
+
+Key demo metric: **RTF** displayed after each transcription. RTF 0.022 = 51.5s audio in 1.15s on A40 (45x real-time).
+
 ## Models
 
 | Alias | Params | Use Case |

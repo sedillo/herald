@@ -65,17 +65,16 @@ WHISPER_DEVICE_INDEX=0 whisper-serve
 # Server is up at http://0.0.0.0:8000
 ```
 
-### Step 2 — Mac (Apple Silicon)
+### Step 2 — Mac (demo UI only)
 
 ```bash
-# Clone and install (demo UI only — no GPU needed)
+# Clone and install — UI only, no inference on Mac
 git clone <repo-url> ~/herald
 cd ~/herald
 
 curl -LsSf https://astral.sh/uv/install.sh | sh
-brew install ffmpeg
 
-uv venv && uv pip install -e ".[mlx,demo]"
+uv venv && uv pip install -e ".[demo]"
 source .venv/bin/activate
 
 # Point at the A40 server and launch the demo

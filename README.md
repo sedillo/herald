@@ -2,26 +2,36 @@
 
 Internal speech-to-text service powered by open-source Whisper models. Auto-detects hardware: Apple Silicon (MLX) for development, NVIDIA GPUs (faster-whisper/CTranslate2) for production.
 
-## Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- ffmpeg: `brew install ffmpeg` (Mac) or `apt install ffmpeg` (Linux)
-- [uv](https://docs.astral.sh/uv/) (recommended)
-
-### Install — Mac (Apple Silicon)
+## Install — Mac (Apple Silicon)
 
 ```bash
-cd ~/command-center/whisper
+# Install uv (Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install ffmpeg
+brew install ffmpeg
+
+# Clone and install
+cd ~/herald
 uv venv && uv pip install -e ".[mlx,dev]"
 source .venv/bin/activate
 ```
 
-### Install — Linux (NVIDIA GPU)
+## Install — Linux (NVIDIA GPU)
 
 ```bash
-cd ~/command-center/whisper
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc  # or restart shell to pick up ~/.local/bin
+
+# Install ffmpeg
+sudo apt update && sudo apt install -y ffmpeg
+
+# Verify CUDA is available
+nvidia-smi
+
+# Clone and install
+cd ~/herald
 uv venv && uv pip install -e ".[cuda,dev]"
 source .venv/bin/activate
 ```
@@ -161,7 +171,7 @@ All settings via environment variables with `WHISPER_` prefix:
 
 ```bash
 # On the Supermicro 4x A40 server:
-git clone <repo> && cd whisper
+git clone <repo> ~/herald && cd ~/herald
 uv venv && uv pip install -e ".[cuda]"
 source .venv/bin/activate
 

@@ -1,5 +1,5 @@
 [project]
-name = "whisper-service"
+name = "herald"
 version = "0.2.0"
 description = "Internal speech-to-text service powered by Whisper"
 requires-python = ">=3.11"

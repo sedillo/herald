@@ -20,6 +20,8 @@ mlx = [
 # NVIDIA GPU (production)
 cuda = [
     "faster-whisper>=1.1.0",
+    "nvidia-cublas-cu12>=12.4.0",
+    "nvidia-cudnn-cu12>=9.1.0",
 ]
 dev = [
     "pytest>=8.0",

@@ -5,8 +5,14 @@ Uses CTranslate2 under the hood for optimized CUDA inference.
 """
 
 import logging
+import os
 import time
+import warnings
 from pathlib import Path
+
+# Suppress HuggingFace unauthenticated request warnings
+os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
+warnings.filterwarnings("ignore", message=".*unauthenticated.*HF Hub.*")
 
 from whisper_service.backends.base import Segment, TranscriptionBackend, TranscriptionResult
 

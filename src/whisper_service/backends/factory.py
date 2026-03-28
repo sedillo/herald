@@ -1,15 +1,17 @@
 """Backend factory — auto-detects hardware and selects the right backend.
 
 Detection order:
-1. Explicit WHISPER_BACKEND env var (mlx | cuda | cpu)
-2. CUDA available → CUDAWhisperBackend
+1. Explicit WHISPER_BACKEND env var (mlx | cuda)
+2. NVIDIA GPU present (nvidia-smi) → CUDAWhisperBackend
 3. Apple Silicon → MLXWhisperBackend
-4. Fallback → error (CPU-only Whisper is too slow to be useful)
+4. Fallback → error
 """
 
 import logging
 import os
 import platform
+import shutil
+import subprocess
 import sys
 
 from whisper_service.backends.base import TranscriptionBackend
@@ -17,20 +19,25 @@ from whisper_service.backends.base import TranscriptionBackend
 logger = logging.getLogger(__name__)
 
 
-def _has_cuda() -> bool:
-    """Check if CUDA is available without importing torch."""
-    try:
-        import torch
-        return torch.cuda.is_available()
-    except ImportError:
-        pass
-
-    # Check for faster-whisper's ctranslate2 CUDA support
-    try:
-        import ctranslate2
-        return "cuda" in ctranslate2.get_supported_compute_types("cuda")
-    except (ImportError, RuntimeError):
+def _has_nvidia_gpu() -> bool:
+    """Check if an NVIDIA GPU is present via nvidia-smi."""
+    nvidia_smi = shutil.which("nvidia-smi")
+    if not nvidia_smi:
         return False
+    try:
+        result = subprocess.run(
+            [nvidia_smi, "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            gpus = result.stdout.strip().split("\n")
+            logger.info(f"NVIDIA GPUs detected: {gpus}")
+            return True
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+    return False
 
 
 def _is_apple_silicon() -> bool:
@@ -42,20 +49,24 @@ def detect_backend() -> str:
     """Auto-detect the best available backend."""
     # Explicit override
     forced = os.environ.get("WHISPER_BACKEND", "").lower()
-    if forced in ("mlx", "cuda", "cpu"):
+    if forced in ("mlx", "cuda"):
         logger.info(f"Backend forced via WHISPER_BACKEND={forced}")
         return forced
 
-    if _has_cuda():
-        logger.info("CUDA detected → using faster-whisper backend")
+    if _has_nvidia_gpu():
+        logger.info("NVIDIA GPU detected — using CUDA backend")
         return "cuda"
 
     if _is_apple_silicon():
-        logger.info("Apple Silicon detected → using MLX backend")
+        logger.info("Apple Silicon detected — using MLX backend")
         return "mlx"
 
-    logger.warning("No GPU detected. CPU inference will be very slow.")
-    return "cpu"
+    raise RuntimeError(
+        "No supported GPU detected. Herald requires either:\n"
+        "  - NVIDIA GPU (install with: pip install -e '.[cuda]')\n"
+        "  - Apple Silicon Mac (install with: pip install -e '.[mlx]')\n"
+        "Or set WHISPER_BACKEND=cuda to force CUDA backend."
+    )
 
 
 def create_backend(
@@ -85,15 +96,6 @@ def create_backend(
         return CUDAWhisperBackend(
             device_index=device_index,
             compute_type=compute_type,
-        )
-
-    elif backend_type == "cpu":
-        # CPU fallback uses faster-whisper with device="cpu"
-        # We reuse the CUDA backend class but it would need modification
-        # For now, raise — CPU is not a realistic deployment target
-        raise RuntimeError(
-            "CPU-only inference is not supported. "
-            "Install MLX (Apple Silicon) or faster-whisper[cuda] (NVIDIA GPU)."
         )
 
     else:

@@ -1,8 +1,16 @@
 """MLX Whisper backend for Apple Silicon inference."""
 
 import logging
+import os
 import time
 from pathlib import Path
+
+# Suppress HuggingFace unauthenticated request warnings.
+# Models are public — auth is optional but HF nags about rate limits.
+os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
+
+import warnings
+warnings.filterwarnings("ignore", message=".*unauthenticated.*HF Hub.*")
 
 from whisper_service.backends.base import Segment, TranscriptionBackend, TranscriptionResult
 

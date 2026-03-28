@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Models (large files, don't commit)
+models/
+*.bin
+*.pt
+*.gguf
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Temp files
+*.tmp
+*.wav.preprocessed

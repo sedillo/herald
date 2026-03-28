@@ -6,6 +6,8 @@ Uses CTranslate2 under the hood for optimized CUDA inference.
 
 import logging
 import os
+import site
+import sys
 import time
 import warnings
 from pathlib import Path
@@ -13,6 +15,71 @@ from pathlib import Path
 # Suppress HuggingFace unauthenticated request warnings
 os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
 warnings.filterwarnings("ignore", message=".*unauthenticated.*HF Hub.*")
+
+
+def _preload_cuda_libs():
+    """Preload pip-installed NVIDIA shared libraries.
+
+    nvidia-cublas-cu12 and nvidia-cudnn-cu12 install .so files into
+    site-packages/nvidia/*/lib/ but ctranslate2 can't find them because
+    they're not on LD_LIBRARY_PATH. We preload them with ctypes so they're
+    already in memory when ctranslate2 tries to use them.
+    """
+    import ctypes
+    import glob
+
+    logger = logging.getLogger(__name__)
+
+    # Libraries ctranslate2 needs, in dependency order
+    lib_patterns = [
+        "nvidia/cublas/lib/libcublasLt.so*",
+        "nvidia/cublas/lib/libcublas.so*",
+        "nvidia/cudnn/lib/libcudnn*.so*",
+        "nvidia/cufft/lib/libcufft.so*",
+    ]
+
+    site_dirs = site.getsitepackages()
+    try:
+        site_dirs.append(site.getusersitepackages())
+    except AttributeError:
+        pass
+
+    loaded = []
+    for sp in site_dirs:
+        for pattern in lib_patterns:
+            matches = sorted(glob.glob(os.path.join(sp, pattern)))
+            for lib_path in matches:
+                # Skip symlinks to avoid double-loading, prefer the versioned .so
+                if os.path.islink(lib_path):
+                    continue
+                try:
+                    ctypes.CDLL(lib_path, mode=ctypes.RTLD_GLOBAL)
+                    loaded.append(os.path.basename(lib_path))
+                except OSError:
+                    pass
+
+    if loaded:
+        logger.info(f"Preloaded CUDA libs: {loaded}")
+    else:
+        # Fallback: also set LD_LIBRARY_PATH for any subprocess or lazy loads
+        nvidia_dirs = []
+        for sp in site_dirs:
+            nvidia_base = Path(sp) / "nvidia"
+            if nvidia_base.is_dir():
+                for subdir in nvidia_base.iterdir():
+                    lib_dir = subdir / "lib"
+                    if lib_dir.is_dir():
+                        nvidia_dirs.append(str(lib_dir))
+        if nvidia_dirs:
+            existing = os.environ.get("LD_LIBRARY_PATH", "")
+            os.environ["LD_LIBRARY_PATH"] = ":".join(nvidia_dirs) + (
+                f":{existing}" if existing else ""
+            )
+            logger.info(f"Set LD_LIBRARY_PATH with: {nvidia_dirs}")
+
+
+# Must run before any ctranslate2/faster_whisper import
+_preload_cuda_libs()
 
 from whisper_service.backends.base import Segment, TranscriptionBackend, TranscriptionResult
 

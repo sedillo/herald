@@ -40,6 +40,52 @@ source .venv/bin/activate
 whisper-transcribe examples/long.mp3
 ```
 
+## Install — Mac Client + Linux Server (Typical Setup)
+
+The most common workflow: **inference runs on the A40 Linux server**, **demo UI runs on your Mac**.
+
+### Step 1 — Linux server (A40)
+
+```bash
+# Clone and install
+git clone <repo-url> ~/herald
+cd ~/herald
+
+curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.bashrc
+sudo apt update && sudo apt install -y ffmpeg
+
+uv venv && uv pip install -e ".[cuda]"
+source .venv/bin/activate
+
+# Verify GPU
+nvidia-smi
+
+# Start the API server (binds to all interfaces)
+WHISPER_DEVICE_INDEX=0 whisper-serve
+# Server is up at http://0.0.0.0:8000
+```
+
+### Step 2 — Mac (Apple Silicon)
+
+```bash
+# Clone and install (demo UI only — no GPU needed)
+git clone <repo-url> ~/herald
+cd ~/herald
+
+curl -LsSf https://astral.sh/uv/install.sh | sh
+brew install ffmpeg
+
+uv venv && uv pip install -e ".[mlx,demo]"
+source .venv/bin/activate
+
+# Point at the A40 server and launch the demo
+WHISPER_BACKEND_URL=http://<a40-host>:8000 streamlit run demo/app.py
+```
+
+> **Network**: the Mac and A40 must be on the same network (or use SSH tunnel).
+> SSH tunnel if needed: `ssh -L 8000:localhost:8000 user@a40-host`
+> Then use `WHISPER_BACKEND_URL=http://localhost:8000`.
+
 ## CLI
 
 ```bash

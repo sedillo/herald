@@ -2,6 +2,129 @@
 
 Internal speech-to-text service. Auto-detects hardware: Apple Silicon (MLX) or NVIDIA GPU (faster-whisper/CTranslate2).
 
+---
+
+## Deploy — A40 Linux Server (UI + CUDA)
+
+This is the primary deployment target. Runs two processes on the same host: the FastAPI inference backend and the Flask web UI. HAProxy sits in front and exposes a single port to the network.
+
+### 1. System dependencies
+
+```bash
+sudo apt update && sudo apt install -y ffmpeg haproxy
+```
+
+Verify the GPU is visible:
+
+```bash
+nvidia-smi
+```
+
+### 2. Clone and install
+
+```bash
+git clone <repo-url> ~/herald
+cd ~/herald
+
+# Install uv (fast Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.bashrc
+
+# Create venv and install CUDA + UI extras
+uv venv && uv pip install -e ".[cuda,ui]"
+source .venv/bin/activate
+```
+
+### 3. Start the inference backend
+
+```bash
+WHISPER_DEVICE_INDEX=0 whisper-serve
+# Listening on http://localhost:8000 — internal only, not exposed to network
+```
+
+### 4. Start the Flask web UI
+
+Open a second terminal:
+
+```bash
+cd ~/herald && source .venv/bin/activate
+WHISPER_BACKEND_URL=http://localhost:8000 whisper-ui
+# Listening on http://localhost:9090 — internal only
+```
+
+### 5. Configure HAProxy
+
+A ready-to-use HAProxy stanza is at `deploy/haproxy-herald.cfg`. It routes inbound traffic on port **9999** to the Flask UI on **9090**, which in turn calls the FastAPI backend on **8000**.
+
+```bash
+# Append the herald stanza to your existing haproxy config
+sudo cat deploy/haproxy-herald.cfg >> /etc/haproxy/haproxy.cfg
+
+# Validate the config
+sudo haproxy -c -f /etc/haproxy/haproxy.cfg
+
+# Reload HAProxy (zero-downtime)
+sudo systemctl reload haproxy
+```
+
+If HAProxy isn't running yet:
+
+```bash
+sudo systemctl enable haproxy
+sudo systemctl start haproxy
+```
+
+Access the UI at `http://<a40-host>:9999`.
+
+> **Mic access:** Chrome blocks mic on plain HTTP for non-localhost origins. Either:
+> - Open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://<a40-host>:9999`, relaunch Chrome.
+> - Or SSH-tunnel: `ssh -L 9999:localhost:9999 user@a40-host` and open `http://localhost:9999`.
+
+### 6. Run as a service (optional)
+
+To survive reboots, create systemd units for both processes:
+
+```bash
+# /etc/systemd/system/herald-api.service
+[Unit]
+Description=Herald Whisper API
+After=network.target
+
+[Service]
+User=<your-user>
+WorkingDirectory=/home/<your-user>/herald
+Environment=WHISPER_DEVICE_INDEX=0
+ExecStart=/home/<your-user>/herald/.venv/bin/whisper-serve
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# /etc/systemd/system/herald-ui.service
+[Unit]
+Description=Herald Web UI
+After=herald-api.service
+
+[Service]
+User=<your-user>
+WorkingDirectory=/home/<your-user>/herald
+Environment=WHISPER_BACKEND_URL=http://localhost:8000
+ExecStart=/home/<your-user>/herald/.venv/bin/whisper-ui
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable herald-api herald-ui
+sudo systemctl start herald-api herald-ui
+```
+
+---
+
 ## Install — Mac (Apple Silicon)
 
 ```bash

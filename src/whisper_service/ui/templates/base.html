@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Herald — Speech to Text{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            surface: '#111827',
+            panel: '#1f2937',
+            border: '#374151',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace; }
+    .tab-btn.active { border-bottom-color: #6366f1; color: #fff; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+  </style>
+</head>
+<body class="bg-surface text-gray-200 min-h-screen">
+
+  <!-- Nav -->
+  <nav class="border-b border-border bg-panel px-6 py-3 flex items-center justify-between">
+    <a href="/" class="text-sm font-bold tracking-widest uppercase text-indigo-400 hover:text-indigo-300">
+      Herald
+    </a>
+    <div class="flex gap-6 text-xs text-gray-400">
+      <a href="/" class="hover:text-white transition-colors {% if request.path == '/' %}text-white{% endif %}">
+        Transcribe
+      </a>
+      <a href="/logs" class="hover:text-white transition-colors {% if request.path == '/logs' %}text-white{% endif %}">
+        Logs
+      </a>
+    </div>
+  </nav>
+
+  <!-- Content -->
+  <main class="max-w-3xl mx-auto px-6 py-10">
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

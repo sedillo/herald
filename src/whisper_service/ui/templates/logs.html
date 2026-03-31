@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Herald — Logs{% endblock %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-8">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Usage Logs</h1>
+    <p class="text-xs text-gray-500 mt-1">{{ entries | length }} most recent requests</p>
+  </div>
+  <a href="/" class="text-xs text-gray-500 hover:text-white transition-colors">← Back</a>
+</div>
+
+{% if not entries %}
+<div class="text-center py-20 text-gray-600">
+  <div class="text-4xl mb-3">📭</div>
+  <p class="text-sm">No transcriptions yet.</p>
+</div>
+
+{% else %}
+
+<!-- Summary stats -->
+<div class="grid grid-cols-4 gap-3 mb-8">
+  {% set success_count = entries | selectattr('error', 'none') | list | length %}
+  {% set error_count   = entries | selectattr('error') | list | length %}
+  {% set total_audio   = entries | map(attribute='duration_s') | select | sum %}
+  <div class="bg-panel border border-border rounded-lg p-3 text-center">
+    <div class="text-xs text-gray-500 mb-1">Total</div>
+    <div class="text-xl font-bold text-white">{{ entries | length }}</div>
+  </div>
+  <div class="bg-panel border border-border rounded-lg p-3 text-center">
+    <div class="text-xs text-gray-500 mb-1">Success</div>
+    <div class="text-xl font-bold text-green-400">{{ success_count }}</div>
+  </div>
+  <div class="bg-panel border border-border rounded-lg p-3 text-center">
+    <div class="text-xs text-gray-500 mb-1">Errors</div>
+    <div class="text-xl font-bold {% if error_count > 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ error_count }}</div>
+  </div>
+  <div class="bg-panel border border-border rounded-lg p-3 text-center">
+    <div class="text-xs text-gray-500 mb-1">Audio (s)</div>
+    <div class="text-xl font-bold text-white">{{ "%.0f"|format(total_audio) }}</div>
+  </div>
+</div>
+
+<!-- Log table -->
+<div class="overflow-x-auto rounded-lg border border-border">
+  <table class="w-full text-xs text-gray-300">
+    <thead>
+      <tr class="bg-panel text-gray-500 text-left border-b border-border">
+        <th class="px-4 py-3 whitespace-nowrap">Timestamp (UTC)</th>
+        <th class="px-4 py-3">IP</th>
+        <th class="px-4 py-3">File</th>
+        <th class="px-4 py-3">Model</th>
+        <th class="px-4 py-3">Lang</th>
+        <th class="px-4 py-3 text-right">Duration</th>
+        <th class="px-4 py-3 text-right">Proc</th>
+        <th class="px-4 py-3 text-right">RTF</th>
+        <th class="px-4 py-3">Transcript / Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr class="border-b border-border hover:bg-panel transition-colors {% if e.error %}bg-red-950/20{% endif %}">
+
+        <td class="px-4 py-2 whitespace-nowrap text-gray-500 font-mono">
+          {{ e.timestamp | replace('T', ' ') }}
+        </td>
+
+        <td class="px-4 py-2 font-mono text-gray-400 whitespace-nowrap">
+          {{ e.client_ip or '—' }}
+        </td>
+
+        <td class="px-4 py-2 max-w-[140px] truncate" title="{{ e.filename }}">
+          {{ e.filename or '—' }}
+          {% if e.file_size_kb %}
+          <span class="text-gray-600">({{ "%.0f"|format(e.file_size_kb) }}KB)</span>
+          {% endif %}
+        </td>
+
+        <td class="px-4 py-2 whitespace-nowrap text-indigo-400">
+          {{ e.model or '—' }}
+        </td>
+
+        <td class="px-4 py-2 uppercase">
+          {{ e.language or '—' }}
+        </td>
+
+        <td class="px-4 py-2 text-right whitespace-nowrap">
+          {% if e.duration_s %}{{ "%.1f"|format(e.duration_s) }}s{% else %}—{% endif %}
+        </td>
+
+        <td class="px-4 py-2 text-right whitespace-nowrap">
+          {% if e.processing_time_s %}{{ "%.2f"|format(e.processing_time_s) }}s{% else %}—{% endif %}
+        </td>
+
+        <td class="px-4 py-2 text-right whitespace-nowrap font-mono">
+          {% if e.rtf %}{{ "%.3f"|format(e.rtf) }}{% else %}—{% endif %}
+        </td>
+
+        <td class="px-4 py-2 max-w-[280px]">
+          {% if e.error %}
+            <span class="text-red-400 truncate block" title="{{ e.error }}">⚠ {{ e.error }}</span>
+          {% elif e.transcription %}
+            <span class="text-gray-300 truncate block" title="{{ e.transcription }}">
+              {{ e.transcription[:120] }}{% if e.transcription|length > 120 %}…{% endif %}
+            </span>
+          {% else %}
+            <span class="text-gray-600">—</span>
+          {% endif %}
+        </td>
+
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endif %}
+
+{% endblock %}

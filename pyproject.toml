@@ -36,10 +36,16 @@ demo = [
     "streamlit>=1.31.0",
     "requests>=2.32.0",
 ]
+# Hosted centralised web UI (hosted-centralized-ui deployment strategy)
+ui = [
+    "flask>=3.0.0",
+    "requests>=2.32.0",
+]
 
 [project.scripts]
 whisper-serve = "whisper_service.main:run"
 whisper-transcribe = "whisper_service.cli:main"
+whisper-ui = "whisper_service.ui.app:run"
 
 [tool.ruff]
 target-version = "py311"

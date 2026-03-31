@@ -65,9 +65,6 @@
     </div>
     <div id="record-timer" class="text-2xl font-bold text-gray-300 hidden">0:00</div>
     <audio id="record-preview" controls class="hidden w-full mt-2"></audio>
-    <button id="record-submit" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-6 py-2 rounded transition-colors">
-      Transcribe
-    </button>
   </div>
 </div>
 
@@ -170,7 +167,7 @@
   const recordStatus = document.getElementById('record-status');
   const recordTimer = document.getElementById('record-timer');
   const recordPreview = document.getElementById('record-preview');
-  const recordSubmit = document.getElementById('record-submit');
+
   const volumeMeter = document.getElementById('volume-meter');
   const volumeBar = document.getElementById('volume-bar');
   let recordedBlob = null;
@@ -196,7 +193,6 @@
           recordTimer.textContent = `${m}:${s.toString().padStart(2,'0')}`;
         }, 1000);
         recordPreview.classList.add('hidden');
-        recordSubmit.classList.add('hidden');
         resetResult();
 
         // Volume meter — tap the live mic stream via AnalyserNode
@@ -228,16 +224,12 @@
       recordBtn.classList.remove('border-red-500', 'text-red-400', 'bg-red-950');
       recordBtn.classList.add('border-indigo-500', 'text-indigo-400');
       recordBtn.textContent = '🎤';
-      recordStatus.textContent = `Recorded ${secondsElapsed}s — ready to transcribe`;
+      recordStatus.textContent = '';
       recordTimer.classList.add('hidden');
       recordPreview.src = URL.createObjectURL(recordedBlob);
       recordPreview.classList.remove('hidden');
-      recordSubmit.classList.remove('hidden');
+      submitAudio(recordedBlob, 'recording.webm', recordedBlob.type);
     }
-  });
-
-  recordSubmit.addEventListener('click', () => {
-    if (recordedBlob) submitAudio(recordedBlob, 'recording.webm', recordedBlob.type);
   });
 
   // -----------------------------------------------------------------------

@@ -18,6 +18,10 @@ class AudioRecorder {
     return this._mediaRecorder?.state === 'recording';
   }
 
+  get stream() {
+    return this._stream;
+  }
+
   async start() {
     this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     this._chunks = [];

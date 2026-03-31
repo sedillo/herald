@@ -60,6 +60,9 @@
       🎤
     </button>
     <p id="record-status" class="text-xs text-gray-500">Click to start recording</p>
+    <div id="volume-meter" class="hidden w-48 h-2 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
+      <div id="volume-bar" class="h-full rounded-full bg-green-500" style="width: 0%; transition: none;"></div>
+    </div>
     <div id="record-timer" class="text-2xl font-bold text-gray-300 hidden">0:00</div>
     <audio id="record-preview" controls class="hidden w-full mt-2"></audio>
     <button id="record-submit" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-6 py-2 rounded transition-colors">
@@ -168,9 +171,13 @@
   const recordTimer = document.getElementById('record-timer');
   const recordPreview = document.getElementById('record-preview');
   const recordSubmit = document.getElementById('record-submit');
+  const volumeMeter = document.getElementById('volume-meter');
+  const volumeBar = document.getElementById('volume-bar');
   let recordedBlob = null;
   let timerInterval = null;
   let secondsElapsed = 0;
+  let meterAudioCtx = null;
+  let meterAnimFrame = null;
 
   recordBtn.addEventListener('click', async () => {
     if (!recorder.recording) {
@@ -191,11 +198,32 @@
         recordPreview.classList.add('hidden');
         recordSubmit.classList.add('hidden');
         resetResult();
+
+        // Volume meter — tap the live mic stream via AnalyserNode
+        meterAudioCtx = new AudioContext();
+        const analyser = meterAudioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        meterAudioCtx.createMediaStreamSource(recorder.stream).connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        volumeMeter.classList.remove('hidden');
+        function drawMeter() {
+          analyser.getByteFrequencyData(data);
+          const avg = data.reduce((a, b) => a + b, 0) / data.length;
+          const pct = Math.min(100, (avg / 128) * 100 * 2); // scale up for sensitivity
+          volumeBar.style.width = pct + '%';
+          volumeBar.className = 'h-full rounded-full ' + (pct > 75 ? 'bg-red-500' : pct > 40 ? 'bg-yellow-400' : 'bg-green-500');
+          meterAnimFrame = requestAnimationFrame(drawMeter);
+        }
+        drawMeter();
       } catch (err) {
         showError('Microphone access denied: ' + err.message);
       }
     } else {
       clearInterval(timerInterval);
+      cancelAnimationFrame(meterAnimFrame);
+      if (meterAudioCtx) { meterAudioCtx.close(); meterAudioCtx = null; }
+      volumeMeter.classList.add('hidden');
+      volumeBar.style.width = '0%';
       recordedBlob = await recorder.stop();
       recordBtn.classList.remove('border-red-500', 'text-red-400', 'bg-red-950');
       recordBtn.classList.add('border-indigo-500', 'text-indigo-400');

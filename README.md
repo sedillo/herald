@@ -53,7 +53,14 @@ WHISPER_BACKEND_URL=http://localhost:8000 whisper-ui
 
 ### 5. Configure HAProxy
 
-A ready-to-use HAProxy stanza is at `deploy/haproxy-herald.cfg`. It routes inbound traffic on port **9999** to the Flask UI on **9090**, which in turn calls the FastAPI backend on **8000**.
+A ready-to-use HAProxy stanza is at `deploy/haproxy-herald.cfg`. Edit it first to bind on port **80** so DNS routes cleanly without a port number:
+
+```bash
+# Edit the stanza — change bind *:9999 to bind *:80
+sudo nano deploy/haproxy-herald.cfg
+```
+
+Then append and reload:
 
 ```bash
 # Append the herald stanza to your existing haproxy config
@@ -73,13 +80,35 @@ sudo systemctl enable haproxy
 sudo systemctl start haproxy
 ```
 
-Access the UI at `http://<a40-host>:9999`.
+### 6. DNS
 
-> **Mic access:** Chrome blocks mic on plain HTTP for non-localhost origins. Either:
-> - Open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://<a40-host>:9999`, relaunch Chrome.
-> - Or SSH-tunnel: `ssh -L 9999:localhost:9999 user@a40-host` and open `http://localhost:9999`.
+DNS resolves hostnames to IPs only — port is handled by HAProxy on port 80. Pick whichever DNS method fits your network:
 
-### 6. Run as a service (optional)
+**Internal DNS (Pi-hole, CoreDNS, corporate DNS):**
+```
+herald.internal  A  <a40-ip>
+```
+
+**No internal DNS — `/etc/hosts` on each client machine:**
+```bash
+echo "<a40-ip>  herald.internal" | sudo tee -a /etc/hosts
+```
+
+**Public domain:**
+Add an A record in your registrar/Cloudflare:
+```
+herald.yourdomain.com  A  <a40-public-ip>
+```
+Then open port 80 in the firewall:
+```bash
+sudo ufw allow 80
+```
+
+Access the UI at `http://herald.internal` (or whatever hostname you chose).
+
+> **Mic access:** Chrome blocks mic on plain HTTP for non-localhost origins. Easiest fix: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add your URL (e.g. `http://herald.internal`), relaunch Chrome. For a permanent fix, terminate SSL at HAProxy (see HTTPS note below).
+
+### 7. Run as a service (optional)
 
 To survive reboots, create systemd units for both processes:
 

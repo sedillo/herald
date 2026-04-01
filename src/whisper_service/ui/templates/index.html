@@ -173,7 +173,8 @@
   let recordedBlob = null;
   let timerInterval = null;
   let secondsElapsed = 0;
-  let meterAudioCtx = null;
+  // Single shared AudioContext — created once, avoids device contention with MediaRecorder
+  const meterAudioCtx = new AudioContext();
   let meterAnimFrame = null;
 
   recordBtn.addEventListener('click', async () => {
@@ -195,29 +196,34 @@
         recordPreview.classList.add('hidden');
         resetResult();
 
-        // Volume meter — tap the live mic stream via AnalyserNode
-        meterAudioCtx = new AudioContext();
-        const analyser = meterAudioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        meterAudioCtx.createMediaStreamSource(recorder.stream).connect(analyser);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        volumeMeter.classList.remove('hidden');
-        function drawMeter() {
-          analyser.getByteFrequencyData(data);
-          const avg = data.reduce((a, b) => a + b, 0) / data.length;
-          const pct = Math.min(100, (avg / 128) * 100 * 2); // scale up for sensitivity
-          volumeBar.style.width = pct + '%';
-          volumeBar.className = 'h-full rounded-full ' + (pct > 75 ? 'bg-red-500' : pct > 40 ? 'bg-yellow-400' : 'bg-green-500');
-          meterAnimFrame = requestAnimationFrame(drawMeter);
+        // Volume meter — tap the live mic stream via shared AudioContext
+        // Wrapped in its own try/catch so a meter failure never kills recording
+        try {
+          if (meterAudioCtx.state === 'suspended') await meterAudioCtx.resume();
+          const analyser = meterAudioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          const source = meterAudioCtx.createMediaStreamSource(recorder.stream);
+          source.connect(analyser);
+          const data = new Uint8Array(analyser.frequencyBinCount);
+          volumeMeter.classList.remove('hidden');
+          function drawMeter() {
+            analyser.getByteFrequencyData(data);
+            const avg = data.reduce((a, b) => a + b, 0) / data.length;
+            const pct = Math.min(100, (avg / 128) * 100 * 2);
+            volumeBar.style.width = pct + '%';
+            volumeBar.className = 'h-full rounded-full ' + (pct > 75 ? 'bg-red-500' : pct > 40 ? 'bg-yellow-400' : 'bg-green-500');
+            meterAnimFrame = requestAnimationFrame(drawMeter);
+          }
+          drawMeter();
+        } catch (meterErr) {
+          console.warn('Volume meter unavailable:', meterErr.message);
         }
-        drawMeter();
       } catch (err) {
         showError('Microphone access denied: ' + err.message);
       }
     } else {
       clearInterval(timerInterval);
       cancelAnimationFrame(meterAnimFrame);
-      if (meterAudioCtx) { meterAudioCtx.close(); meterAudioCtx = null; }
       volumeMeter.classList.add('hidden');
       volumeBar.style.width = '0%';
       recordedBlob = await recorder.stop();

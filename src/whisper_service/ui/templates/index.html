@@ -201,15 +201,22 @@
         try {
           if (meterAudioCtx.state === 'suspended') await meterAudioCtx.resume();
           const analyser = meterAudioCtx.createAnalyser();
-          analyser.fftSize = 256;
+          analyser.fftSize = 2048;
+          analyser.smoothingTimeConstant = 0.3;
           const source = meterAudioCtx.createMediaStreamSource(recorder.stream);
           source.connect(analyser);
-          const data = new Uint8Array(analyser.frequencyBinCount);
+          const data = new Uint8Array(analyser.fftSize);
           volumeMeter.classList.remove('hidden');
           function drawMeter() {
-            analyser.getByteFrequencyData(data);
-            const avg = data.reduce((a, b) => a + b, 0) / data.length;
-            const pct = Math.min(100, (avg / 128) * 100 * 2);
+            // Time-domain waveform — values centered at 128 (silence)
+            analyser.getByteTimeDomainData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) {
+              const v = (data[i] - 128) / 128;
+              sum += v * v;
+            }
+            const rms = Math.sqrt(sum / data.length);
+            const pct = Math.min(100, rms * 400);
             volumeBar.style.width = pct + '%';
             volumeBar.className = 'h-full rounded-full ' + (pct > 75 ? 'bg-red-500' : pct > 40 ? 'bg-yellow-400' : 'bg-green-500');
             meterAnimFrame = requestAnimationFrame(drawMeter);

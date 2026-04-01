@@ -311,7 +311,7 @@
 
     document.getElementById('result-lang').textContent =
       data.language ? data.language.toUpperCase() : '';
-    document.getElementById('result-text').textContent = data.text || '';
+    document.getElementById('result-text').textContent = normalizeText(data.text || '');
 
     const segsEl = document.getElementById('result-segments');
     segsEl.innerHTML = '';
@@ -352,6 +352,75 @@
   // -----------------------------------------------------------------------
   // Util
   // -----------------------------------------------------------------------
+  function normalizeText(text) {
+    // Convert spoken symbols to characters for engineering dictation.
+    // Multi-word patterns first, then single-word.
+    const rules = [
+
+      // --- Multi-word (must come before single-word rules) ---
+      [/\bdouble underscore\b/gi,          '__'  ],
+      [/\bdouble colon\b/gi,               '::'  ],
+      [/\bdot dot dot\b/gi,                '...' ],
+      [/\bfat arrow\b/gi,                  '=>'  ],
+      [/\bnot equals?\b/gi,                '!='  ],
+      [/\bless than or equals?\b/gi,       '<='  ],
+      [/\bgreater than or equals?\b/gi,    '>='  ],
+      [/\bopen (?:curly |curly )?brace\b/gi, '(' ],  // open brace / open curly brace
+      [/\bclose (?:curly |curly )?brace\b/gi, ')'],
+      [/\bopen curly\b/gi,                 '{'  ],
+      [/\bclose curly\b/gi,                '}'  ],
+      [/\bopen paren\b/gi,                 '('  ],
+      [/\bclose paren\b/gi,                ')'  ],
+      [/\bopen bracket\b/gi,               '['  ],
+      [/\bclose bracket\b/gi,              ']'  ],
+      [/\bat sign\b/gi,                    '@'  ],
+      [/\bdollar sign\b/gi,                '$'  ],
+      [/\bquestion mark\b/gi,              '?'  ],
+      [/\bexclamation (?:mark|point)\b/gi, '!'  ],
+
+      // --- Operators (keep spaces around) ---
+      [/ equals /gi,       ' = '  ],
+      [/ plus /gi,         ' + '  ],
+      [/ minus /gi,        ' - '  ],
+      [/ pipe /gi,         ' | '  ],
+      [/ less than /gi,    ' < '  ],
+      [/ greater than /gi, ' > '  ],
+      [/ ampersand /gi,    ' & '  ],
+
+      // --- Identifier / path chars (collapse spaces) ---
+      [/ underscore /gi,   '_'  ],
+      [/^underscore /gi,   '_'  ],
+      [/ underscore$/gi,   '_'  ],
+      [/ dot /gi,          '.'  ],
+      [/ dash /gi,         '-'  ],
+      [/ slash /gi,        '/'  ],
+      [/ backslash /gi,    '\\'  ],
+      [/ arrow /gi,        '->' ],
+
+      // --- Punctuation (remove space before, keep after) ---
+      [/ comma(?= |$)/gi,     ','  ],
+      [/ period(?= |$)/gi,    '.'  ],
+      [/ semicolon/gi,        ';'  ],
+      [/ colon(?= |$)/gi,     ':'  ],
+      [/ bang(?= |$)/gi,      '!'  ],
+
+      // --- Misc symbols ---
+      [/\basterisk\b/gi,   '*'  ],
+      [/\bhash\b/gi,       '#'  ],
+      [/\bpercent\b/gi,    '%'  ],
+      [/\bcaret\b/gi,      '^'  ],
+      [/\btilde\b/gi,      '~'  ],
+      [/\bbacktick\b/gi,   '`'  ],
+
+    ];
+
+    let out = text;
+    for (const [pattern, replacement] of rules) {
+      out = out.replace(pattern, replacement);
+    }
+    return out;
+  }
+
   function formatBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';

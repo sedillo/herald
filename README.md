@@ -106,9 +106,67 @@ sudo ufw allow 80
 
 Access the UI at `http://herald.internal` (or whatever hostname you chose).
 
-> **Mic access:** Chrome blocks mic on plain HTTP for non-localhost origins. Easiest fix: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add your URL (e.g. `http://herald.internal`), relaunch Chrome. For a permanent fix, terminate SSL at HAProxy (see HTTPS note below).
+> **Mic access:** Chrome blocks mic on plain HTTP for non-localhost origins. Easiest fix: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add your URL (e.g. `http://herald.internal`), relaunch Chrome. For a permanent fix, see HTTPS below.
 
-### 7. Run as a service (optional)
+### 7. HTTPS / TLS (recommended for mic access)
+
+SSL terminates at HAProxy. The two services (Flask UI, FastAPI backend) stay on plain HTTP internally — only the inbound connection gets TLS.
+
+#### Option A — Internal CA cert (best for team use)
+
+If your network has a corporate CA, request a cert for your hostname. Everyone on the network already trusts that CA — no browser warnings.
+
+```bash
+# You'll receive cert.pem + key.pem (or a .p12 to convert)
+# HAProxy wants them concatenated into a single .pem
+cat cert.pem key.pem > /etc/haproxy/herald.pem
+chmod 600 /etc/haproxy/herald.pem
+```
+
+#### Option B — Self-signed cert (single machine or quick setup)
+
+```bash
+openssl req -x509 -newkey rsa:4096 -days 825 -nodes \
+  -keyout /etc/haproxy/herald-key.pem \
+  -out    /etc/haproxy/herald-cert.pem \
+  -subj "/CN=herald.internal" \
+  -addext "subjectAltName=DNS:herald.internal,IP:<a40-ip>"
+
+# Concatenate for HAProxy
+cat /etc/haproxy/herald-cert.pem /etc/haproxy/herald-key.pem > /etc/haproxy/herald.pem
+chmod 600 /etc/haproxy/herald.pem
+```
+
+Browser will show an untrusted cert warning — click **Advanced → Proceed**. Once accepted, mic works with no Chrome flags needed.
+
+To suppress the warning on all team machines, distribute and trust `herald-cert.pem`:
+```bash
+# On each client (Ubuntu/Debian)
+sudo cp herald-cert.pem /usr/local/share/ca-certificates/herald.crt
+sudo update-ca-certificates
+```
+
+#### HAProxy config for HTTPS
+
+In `/etc/haproxy/haproxy.cfg`, update the herald frontend bind line:
+
+```
+frontend herald_front
+    bind *:443 ssl crt /etc/haproxy/herald.pem
+    # Optionally redirect HTTP → HTTPS
+    bind *:80
+    redirect scheme https if !{ ssl_fc }
+    ...
+```
+
+```bash
+sudo haproxy -c -f /etc/haproxy/haproxy.cfg && sudo systemctl reload haproxy
+sudo ufw allow 443
+```
+
+Access at `https://herald.internal`. Mic works natively, no Chrome flags needed.
+
+### 8. Run as a service (optional)
 
 To survive reboots, create systemd units for both processes:
 

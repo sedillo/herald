@@ -136,7 +136,7 @@ def create_app() -> Flask:
             )
             return jsonify({"error": msg}), 500
 
-    @app.route("/logs")
+    @app.route("/pumpkin-spice")
     def logs():
         entries = get_logs()
         return render_template("logs.html", entries=entries)

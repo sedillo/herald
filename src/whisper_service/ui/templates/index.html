@@ -60,11 +60,11 @@
       🎤
     </button>
     <p id="record-status" class="text-xs text-gray-500">Click to start recording</p>
-    <div id="volume-meter" class="hidden w-48 h-2 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
-      <div id="volume-bar" class="h-full rounded-full bg-green-500" style="width: 0%; transition: none;"></div>
-    </div>
     <div id="record-timer" class="text-2xl font-bold text-gray-300 hidden">0:00</div>
     <audio id="record-preview" controls class="hidden w-full mt-2"></audio>
+    <button id="record-submit" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-6 py-2 rounded transition-colors">
+      Transcribe
+    </button>
   </div>
 </div>
 
@@ -106,7 +106,7 @@
 <!-- Result -->
 <div id="result-box" class="hidden mt-8">
   <!-- Metrics -->
-  <div id="result-metrics" class="grid grid-cols-3 gap-4 mb-6">
+  <div class="grid grid-cols-3 gap-4 mb-6">
     <div class="bg-panel border border-border rounded-lg p-3 text-center">
       <div class="text-xs text-gray-500 mb-1">Audio</div>
       <div id="metric-duration" class="text-lg font-bold text-white">—</div>
@@ -128,27 +128,21 @@
         <span class="text-xs text-gray-500 uppercase tracking-wider">Transcript</span>
         <span id="result-lang" class="text-xs bg-indigo-900 text-indigo-300 px-2 py-0.5 rounded"></span>
       </div>
-      <button id="copy-btn" class="text-xs text-gray-500 hover:text-white transition-colors">
-        Copy
-      </button>
+      <button id="copy-btn" class="text-xs text-gray-500 hover:text-white transition-colors">Copy</button>
     </div>
     <p id="result-text" class="text-gray-100 leading-relaxed whitespace-pre-wrap"></p>
   </div>
 
   <!-- Segments (collapsible) -->
-  <details class="mt-4 group">
-    <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-300 select-none">
-      Segments ▸
-    </summary>
+  <details class="mt-4">
+    <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-300 select-none">Segments ▸</summary>
     <div id="result-segments" class="mt-3 space-y-1 text-xs text-gray-400 font-mono"></div>
   </details>
 </div>
 
 <script src="/static/recorder.js"></script>
 <script>
-  // -----------------------------------------------------------------------
   // Tab switching
-  // -----------------------------------------------------------------------
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -159,23 +153,16 @@
     });
   });
 
-  // -----------------------------------------------------------------------
   // Recording
-  // -----------------------------------------------------------------------
   const recorder = new AudioRecorder();
   const recordBtn = document.getElementById('record-btn');
   const recordStatus = document.getElementById('record-status');
   const recordTimer = document.getElementById('record-timer');
   const recordPreview = document.getElementById('record-preview');
-
-  const volumeMeter = document.getElementById('volume-meter');
-  const volumeBar = document.getElementById('volume-bar');
+  const recordSubmit = document.getElementById('record-submit');
   let recordedBlob = null;
   let timerInterval = null;
   let secondsElapsed = 0;
-  // Single shared AudioContext — created once, avoids device contention with MediaRecorder
-  const meterAudioCtx = new AudioContext();
-  let meterAnimFrame = null;
 
   recordBtn.addEventListener('click', async () => {
     if (!recorder.recording) {
@@ -194,60 +181,30 @@
           recordTimer.textContent = `${m}:${s.toString().padStart(2,'0')}`;
         }, 1000);
         recordPreview.classList.add('hidden');
+        recordSubmit.classList.add('hidden');
         resetResult();
-
-        // Volume meter — tap the live mic stream via shared AudioContext
-        // Wrapped in its own try/catch so a meter failure never kills recording
-        try {
-          if (meterAudioCtx.state === 'suspended') await meterAudioCtx.resume();
-          const analyser = meterAudioCtx.createAnalyser();
-          analyser.fftSize = 2048;
-          analyser.smoothingTimeConstant = 0.3;
-          const source = meterAudioCtx.createMediaStreamSource(recorder.stream);
-          source.connect(analyser);
-          const data = new Uint8Array(analyser.fftSize);
-          volumeMeter.classList.remove('hidden');
-          function drawMeter() {
-            // Time-domain waveform — values centered at 128 (silence)
-            analyser.getByteTimeDomainData(data);
-            let sum = 0;
-            for (let i = 0; i < data.length; i++) {
-              const v = (data[i] - 128) / 128;
-              sum += v * v;
-            }
-            const rms = Math.sqrt(sum / data.length);
-            const pct = Math.min(100, rms * 400);
-            volumeBar.style.width = pct + '%';
-            volumeBar.className = 'h-full rounded-full ' + (pct > 75 ? 'bg-red-500' : pct > 40 ? 'bg-yellow-400' : 'bg-green-500');
-            meterAnimFrame = requestAnimationFrame(drawMeter);
-          }
-          drawMeter();
-        } catch (meterErr) {
-          console.warn('Volume meter unavailable:', meterErr.message);
-        }
       } catch (err) {
         showError('Microphone access denied: ' + err.message);
       }
     } else {
       clearInterval(timerInterval);
-      cancelAnimationFrame(meterAnimFrame);
-      volumeMeter.classList.add('hidden');
-      volumeBar.style.width = '0%';
       recordedBlob = await recorder.stop();
       recordBtn.classList.remove('border-red-500', 'text-red-400', 'bg-red-950');
       recordBtn.classList.add('border-indigo-500', 'text-indigo-400');
       recordBtn.textContent = '🎤';
-      recordStatus.textContent = '';
+      recordStatus.textContent = `Recorded ${secondsElapsed}s — ready to transcribe`;
       recordTimer.classList.add('hidden');
       recordPreview.src = URL.createObjectURL(recordedBlob);
       recordPreview.classList.remove('hidden');
-      submitAudio(recordedBlob, 'recording.webm', recordedBlob.type);
+      recordSubmit.classList.remove('hidden');
     }
   });
 
-  // -----------------------------------------------------------------------
+  recordSubmit.addEventListener('click', () => {
+    if (recordedBlob) submitAudio(recordedBlob, 'recording.webm', recordedBlob.type);
+  });
+
   // Upload
-  // -----------------------------------------------------------------------
   const uploadInput = document.getElementById('upload-input');
   const uploadPreviewArea = document.getElementById('upload-preview-area');
   const uploadPreview = document.getElementById('upload-preview');
@@ -267,7 +224,6 @@
     resetResult();
   });
 
-  // Drag-and-drop
   const dropZone = document.getElementById('drop-zone');
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-500'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-500'));
@@ -282,28 +238,20 @@
     if (uploadedFile) submitAudio(uploadedFile, uploadedFile.name, uploadedFile.type);
   });
 
-  // -----------------------------------------------------------------------
-  // Transcription submit
-  // -----------------------------------------------------------------------
+  // Submit
   async function submitAudio(blob, filename, mimeType) {
     resetResult();
     document.getElementById('spinner').classList.remove('hidden');
-
     const fd = new FormData();
     fd.append('file', blob, filename);
     fd.append('model', document.getElementById('model').value);
     const lang = document.getElementById('language').value.trim();
     if (lang) fd.append('language', lang);
-
     try {
       const resp = await fetch('/transcribe', { method: 'POST', body: fd });
       const data = await resp.json();
       document.getElementById('spinner').classList.add('hidden');
-
-      if (!resp.ok) {
-        showError(data.error || `Error ${resp.status}`);
-        return;
-      }
+      if (!resp.ok) { showError(data.error || `Error ${resp.status}`); return; }
       showResult(data);
     } catch (err) {
       document.getElementById('spinner').classList.add('hidden');
@@ -311,9 +259,6 @@
     }
   }
 
-  // -----------------------------------------------------------------------
-  // Result rendering
-  // -----------------------------------------------------------------------
   function showResult(data) {
     document.getElementById('metric-duration').textContent =
       data.duration != null ? data.duration.toFixed(1) + 's' : '—';
@@ -321,11 +266,9 @@
       data.processing_time != null ? data.processing_time.toFixed(2) + 's' : '—';
     document.getElementById('metric-rtf').textContent =
       data.rtf != null ? data.rtf.toFixed(3) : '—';
-
     document.getElementById('result-lang').textContent =
       data.language ? data.language.toUpperCase() : '';
-    document.getElementById('result-text').textContent = normalizeText(data.text || '');
-
+    document.getElementById('result-text').textContent = data.text || '';
     const segsEl = document.getElementById('result-segments');
     segsEl.innerHTML = '';
     (data.segments || []).forEach(seg => {
@@ -334,7 +277,6 @@
       div.innerHTML = `<span class="text-indigo-500 shrink-0">${seg.start.toFixed(2)}s → ${seg.end.toFixed(2)}s</span><span>${seg.text}</span>`;
       segsEl.appendChild(div);
     });
-
     document.getElementById('result-box').classList.remove('hidden');
   }
 
@@ -350,9 +292,6 @@
     document.getElementById('spinner').classList.add('hidden');
   }
 
-  // -----------------------------------------------------------------------
-  // Copy button
-  // -----------------------------------------------------------------------
   document.getElementById('copy-btn').addEventListener('click', () => {
     const text = document.getElementById('result-text').textContent;
     navigator.clipboard.writeText(text).then(() => {
@@ -361,78 +300,6 @@
       setTimeout(() => btn.textContent = 'Copy', 1500);
     });
   });
-
-  // -----------------------------------------------------------------------
-  // Util
-  // -----------------------------------------------------------------------
-  function normalizeText(text) {
-    // Convert spoken symbols to characters for engineering dictation.
-    // Multi-word patterns first, then single-word.
-    const rules = [
-
-      // --- Multi-word (must come before single-word rules) ---
-      [/\bdouble underscore\b/gi,          '__'  ],
-      [/\bdouble colon\b/gi,               '::'  ],
-      [/\bdot dot dot\b/gi,                '...' ],
-      [/\bfat arrow\b/gi,                  '=>'  ],
-      [/\bnot equals?\b/gi,                '!='  ],
-      [/\bless than or equals?\b/gi,       '<='  ],
-      [/\bgreater than or equals?\b/gi,    '>='  ],
-      [/\bopen (?:curly |curly )?brace\b/gi, '(' ],  // open brace / open curly brace
-      [/\bclose (?:curly |curly )?brace\b/gi, ')'],
-      [/\bopen curly\b/gi,                 '{'  ],
-      [/\bclose curly\b/gi,                '}'  ],
-      [/\bopen paren\b/gi,                 '('  ],
-      [/\bclose paren\b/gi,                ')'  ],
-      [/\bopen bracket\b/gi,               '['  ],
-      [/\bclose bracket\b/gi,              ']'  ],
-      [/\bat sign\b/gi,                    '@'  ],
-      [/\bdollar sign\b/gi,                '$'  ],
-      [/\bquestion mark\b/gi,              '?'  ],
-      [/\bexclamation (?:mark|point)\b/gi, '!'  ],
-
-      // --- Operators (keep spaces around) ---
-      [/ equals /gi,       ' = '  ],
-      [/ plus /gi,         ' + '  ],
-      [/ minus /gi,        ' - '  ],
-      [/ pipe /gi,         ' | '  ],
-      [/ less than /gi,    ' < '  ],
-      [/ greater than /gi, ' > '  ],
-      [/ ampersand /gi,    ' & '  ],
-
-      // --- Identifier / path chars (collapse spaces) ---
-      [/ underscore /gi,   '_'  ],
-      [/^underscore /gi,   '_'  ],
-      [/ underscore$/gi,   '_'  ],
-      [/ dot /gi,          '.'  ],
-      [/ dash /gi,         '-'  ],
-      [/ slash /gi,        '/'  ],
-      [/ backslash /gi,    '\\'  ],
-      [/ arrow /gi,        '->' ],
-
-      // --- Punctuation (remove space before, keep after) ---
-      [/ comma(?= |$)/gi,     ','  ],
-      [/ period(?= |$)/gi,    '.'  ],
-      [/ semicolon/gi,        ';'  ],
-      [/ colon(?= |$)/gi,     ':'  ],
-      [/ bang(?= |$)/gi,      '!'  ],
-
-      // --- Misc symbols ---
-      [/\basterisk\b/gi,   '*'  ],
-      [/\bhash\b/gi,       '#'  ],
-      [/\bpercent\b/gi,    '%'  ],
-      [/\bcaret\b/gi,      '^'  ],
-      [/\btilde\b/gi,      '~'  ],
-      [/\bbacktick\b/gi,   '`'  ],
-
-    ];
-
-    let out = text;
-    for (const [pattern, replacement] of rules) {
-      out = out.replace(pattern, replacement);
-    }
-    return out;
-  }
 
   function formatBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';

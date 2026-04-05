@@ -3,9 +3,9 @@
  *
  * Usage:
  *   const recorder = new AudioRecorder();
- *   await recorder.start();          // requests mic permission, begins recording
+ *   await recorder.start();             // requests mic permission, begins recording
  *   const blob = await recorder.stop(); // stops, releases mic, returns Blob
- *   recorder.recording               // true while active
+ *   recorder.recording                  // true while active
  */
 class AudioRecorder {
   constructor() {
@@ -16,10 +16,6 @@ class AudioRecorder {
 
   get recording() {
     return this._mediaRecorder?.state === 'recording';
-  }
-
-  get stream() {
-    return this._stream;
   }
 
   async start() {
@@ -40,7 +36,7 @@ class AudioRecorder {
       if (e.data.size > 0) this._chunks.push(e.data);
     });
 
-    // Collect data in 250ms slices so we have granular chunks
+    // Collect in 250ms slices for granular chunks
     this._mediaRecorder.start(250);
   }
 
@@ -50,7 +46,6 @@ class AudioRecorder {
         reject(new Error('Not recording'));
         return;
       }
-
       this._mediaRecorder.addEventListener('stop', () => {
         const mimeType = this._mediaRecorder.mimeType || 'audio/webm';
         const blob = new Blob(this._chunks, { type: mimeType });
@@ -60,7 +55,6 @@ class AudioRecorder {
         this._mediaRecorder = null;
         resolve(blob);
       });
-
       this._mediaRecorder.stop();
     });
   }

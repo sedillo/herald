@@ -10,7 +10,6 @@ Configuration (env vars):
     WHISPER_BACKEND_URL   URL of the Herald FastAPI backend  [default: http://localhost:8000]
     HERALD_UI_PORT        Port this Flask app listens on     [default: 9090]
     HERALD_UI_HOST        Bind address                       [default: 0.0.0.0]
-    HERALD_UI_LOG_DB      Path to SQLite log database        [default: ~/.cache/whisper-service/ui_log.db]
 
 Run locally (Mac):
     uv pip install -e ".[ui]"
@@ -136,7 +135,7 @@ def create_app() -> Flask:
             )
             return jsonify({"error": msg}), 500
 
-    @app.route("/pumpkin-spice")
+    @app.route("/logs")
     def logs():
         entries = get_logs()
         return render_template("logs.html", entries=entries)
@@ -153,5 +152,5 @@ def run():
     port = int(os.getenv("HERALD_UI_PORT", "9090"))
     host = os.getenv("HERALD_UI_HOST", "0.0.0.0")
     app = create_app()
-    # Use threaded=True so slow transcription POSTs don't block the logs page
+    # threaded=True so slow transcription POSTs don't block the logs page
     app.run(host=host, port=port, threaded=True)
